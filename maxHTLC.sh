@@ -30,7 +30,7 @@ echo "Adjusting Max HTLCs for Channels of : $nodeAlias"
 echo "------------------------"
 
 # can also add ' --public_only' to the listchannels call to limit to public channels
-for row in $(lncli listchannels | jq -r '.channels[] | {channel_point, chan_id, local_balance, local_chan_reserve_sat, peer_alias} | @base64'); do
+for row in $(lncli listchannels | jq -r '.channels[] | {channel_point, chan_id, scid, local_balance, local_chan_reserve_sat, peer_alias} | @base64'); do
 #this is a function that we call for initial variable assignments, below
     _jq() {
         echo ${row} | base64 --decode | jq -r ${1}
@@ -38,7 +38,8 @@ for row in $(lncli listchannels | jq -r '.channels[] | {channel_point, chan_id, 
 
 # get the current channel's details from the main list
     channelPoint=( $(_jq '.channel_point') )
-    channelId=( $(_jq '.chan_id') )
+#    channelId=( $(_jq '.chan_id') )
+    channelId=( $(_jq '.scid') )
     localBalance=( $(_jq '.local_balance') )
     localReserve=( $(_jq '.local_chan_reserve_sat') )
     peerAlias=( "$(_jq '.peer_alias')" )
@@ -54,7 +55,9 @@ for row in $(lncli listchannels | jq -r '.channels[] | {channel_point, chan_id, 
         channelInformation=$(echo "$channelInformation" | jq -r '.node2_policy')
     fi
 
+#    echo "ChanInfo: $channelInformation"
     maxHTLCMsat=$(echo "${channelInformation}" | jq -r '.max_htlc_msat')
+#    echo "Currently $maxHTLCMsat"
     timeLockDelta=144
 #    timeLockDelta=$(echo "${channelInformation}" | jq -r '.time_lock_delta')
     feeBaseMsat=$(echo "${channelInformation}" | jq -r '.fee_base_msat')
@@ -62,6 +65,7 @@ for row in $(lncli listchannels | jq -r '.channels[] | {channel_point, chan_id, 
 
 # calculate the new Max HTLC in msats for the current channel
     newMaxHTLCMsat=$((($localBalance-$localReserve)*1000))
+#    echo "Soonly be $newMaxHTLCMsat"
 
 # call the update command on each channel
 
@@ -70,7 +74,7 @@ for row in $(lncli listchannels | jq -r '.channels[] | {channel_point, chan_id, 
     then
         echo "New max HTLC value for $peerAlias would be negative. Setting to zero."
         lncli updatechanpolicy --max_htlc_msat 0 --base_fee_msat $feeBaseMsat --fee_rate_ppm $feeRateMilliMsat --time_lock_delta $timeLockDelta --chan_point $channelPoint
-     elif [ $maxHTLCMsat != $newMaxHTLCMsat ]
+    elif [ $maxHTLCMsat != $newMaxHTLCMsat ]
     then
         if [ $isDryrun -eq 1 ]
         then
